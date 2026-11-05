@@ -1,6 +1,7 @@
 name: Release theme
 
 'on':
+  workflow_dispatch: {}
   push:
     tags:
       - 'v[0-9]*'
@@ -9,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: komari-ink-release
   cancel-in-progress: false
 
 jobs:
@@ -19,7 +20,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout tagged source
+      - name: Checkout release source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
@@ -39,6 +40,8 @@ jobs:
           THEME_SOURCE: ${{ github.workspace }}
           THEME_OUTPUT: ${{ runner.temp }}/komari-ink-release
           RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_EVENT: ${{ github.event_name }}
+          RELEASE_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -57,7 +60,13 @@ jobs:
           version = manifest.get('version', '')
           if not re.fullmatch(r'(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:alpha|beta|rc)\.[1-9]\d*)?', version):
               raise ValueError('Invalid version; use 1.0.0 or 1.0.0-rc.1')
-          tag = os.environ['RELEASE_TAG']
+          event = os.environ.get('RELEASE_EVENT', 'push')
+          if event == 'workflow_dispatch':
+              if os.environ.get('RELEASE_REF') != 'refs/heads/main':
+                  raise ValueError('Manual release must run from main; select main in Run workflow')
+              tag = 'v' + version
+          else:
+              tag = os.environ['RELEASE_TAG']
           if tag != 'v' + version:
               raise ValueError(f'Tag {tag!r} does not match manifest version v{version}')
           if manifest.get('short') != 'komari-ink' or not manifest.get('name') or manifest.get('preview') != 'preview.jpg':
@@ -115,7 +124,7 @@ jobs:
           )
           if os.environ.get('GITHUB_OUTPUT'):
               with open(os.environ['GITHUB_OUTPUT'], 'a') as result:
-                  result.write(f"version={version}\narchive={archive_path.name}\nprerelease={'true' if '-' in version else 'false'}\n")
+                  result.write(f"version={version}\ntag={tag}\narchive={archive_path.name}\nprerelease={'true' if '-' in version else 'false'}\n")
           print(json.dumps(report, ensure_ascii=False, indent=2))
           # END KOMARI PACKAGER
           PY
@@ -125,23 +134,59 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ steps.package.outputs.tag }}
+          RELEASE_EVENT: ${{ github.event_name }}
+          RELEASE_COMMIT: ${{ github.sha }}
           RELEASE_VERSION: ${{ steps.package.outputs.version }}
           RELEASE_ARCHIVE: ${{ steps.package.outputs.archive }}
           RELEASE_PRERELEASE: ${{ steps.package.outputs.prerelease }}
           RELEASE_DIR: ${{ runner.temp }}/komari-ink-release
         run: |
           set -euo pipefail
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "Release already exists. Use a new version/tag; existing assets are not overwritten."
-            exit 1
-          fi
-          args=(--verify-tag --title "Komari Ink $RELEASE_VERSION" --notes-file "$RELEASE_DIR/RELEASE_NOTES.md")
-          if [[ "$RELEASE_PRERELEASE" == "true" ]]; then
-            args+=(--prerelease)
-          fi
-          gh release create "$RELEASE_TAG" \
-            "$RELEASE_DIR/$RELEASE_ARCHIVE" \
-            "$RELEASE_DIR/SHA256SUMS" \
-            "$RELEASE_DIR/build-report.json" \
-            "${args[@]}"
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          repo = os.environ['GH_REPO']
+          tag = os.environ['RELEASE_TAG']
+          commit = os.environ['RELEASE_COMMIT']
+          directory = os.environ['RELEASE_DIR']
+
+          def api(path):
+              result = subprocess.run(['gh', 'api', path], text=True, capture_output=True)
+              if result.returncode:
+                  try:
+                      body = json.loads(result.stdout)
+                  except (ValueError, TypeError):
+                      body = {}
+                  if str(body.get('status')) == '404' or '(HTTP 404)' in result.stderr:
+                      return None
+                  raise RuntimeError('GitHub API request failed: ' + result.stderr.strip())
+              return json.loads(result.stdout)
+
+          if api(f'repos/{repo}/releases/tags/{tag}') is not None:
+              raise RuntimeError('Release already exists. Increase the manifest version; existing assets are not overwritten.')
+          ref = api(f'repos/{repo}/git/ref/tags/{tag}')
+          args = ['gh', 'release', 'create', tag]
+          if ref is None:
+              if os.environ.get('RELEASE_EVENT') != 'workflow_dispatch':
+                  raise RuntimeError('The pushed release tag could not be verified')
+              args += ['--target', commit]
+          else:
+              obj = ref.get('object', {})
+              for _ in range(10):
+                  if obj.get('type') != 'tag':
+                      break
+                  annotated = api(f"repos/{repo}/git/tags/{obj['sha']}")
+                  if annotated is None:
+                      raise RuntimeError('Annotated tag target is unavailable')
+                  obj = annotated.get('object', {})
+              if obj.get('type') != 'commit' or obj.get('sha') != commit:
+                  raise RuntimeError('Existing tag points to a different commit; use a new version')
+              args += ['--verify-tag']
+          args += [directory + '/' + os.environ['RELEASE_ARCHIVE'], directory + '/SHA256SUMS', directory + '/build-report.json', '--title', 'Komari Ink ' + os.environ['RELEASE_VERSION'], '--notes-file', directory + '/RELEASE_NOTES.md']
+          if os.environ['RELEASE_PRERELEASE'] == 'true':
+              args.append('--prerelease')
+          subprocess.run(args, check=True)
+          PY

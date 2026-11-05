@@ -18,11 +18,15 @@
 
 将本目录的内容作为仓库根目录上传，包含隐藏目录 `.github/`；不要把外层项目目录整体上传。
 
-修改 `komari-theme.json` 中的 version，提交源码后推送同名版本标签，例如 `v1.1.0`。Actions 自动检查语法、版本匹配及 ZIP 内容，再创建对应 Release，附带 `Komari-Ink-v1.1.0.zip`、`SHA256SUMS` 和 `build-report.json`。下载这个主题 ZIP，不要使用 GitHub 自动生成的 Source code ZIP。
+手动打包发布：进入 **Actions → Release theme → Run workflow**，选择 **main**，再点击绿色的 **Run workflow**。版本直接读取 `komari-theme.json`，无需事先创建标签；工作流将新标签指向本次运行实际检出的提交，生成 ZIP 并发布到 Releases。
 
-预发布版本采用 `1.1.0-rc.1` / `v1.1.0-rc.1`，也支持 alpha、beta；Actions 自动标为预发布。版本与标签不一致会失败。已有 Release 不会被覆盖；使用新版本和新标签。
+发布附件为主题 ZIP、`SHA256SUMS` 和 `build-report.json`。请下载安装包，不要使用 GitHub 自动生成的 Source code ZIP。
 
-工作流使用 GitHub 提供的 GITHUB_TOKEN，无需添加个人 PAT。仓库 Actions 需允许工作流申请 contents: write。提交工作流不会发布，推送匹配标签才发布。
+同版本已发布时会停止，不覆盖旧附件。下次更新需先修改清单 version 并提交到 main，再手动运行。已有同名标签必须与本次提交完全一致；不一致时停止，保留原标签。
+
+仍支持推送与清单一致的版本标签自动发布。预发布使用 `1.2.0-rc.1` / `v1.2.0-rc.1`，也支持 alpha、beta，自动标为预发布。
+
+工作流使用 GitHub 提供的 GITHUB_TOKEN，无需添加个人 PAT。普通 main 提交不会自动发布；点击手动运行或推送版本标签才发布。
 
 ## 后台主题设置
 
