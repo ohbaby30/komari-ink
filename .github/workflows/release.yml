@@ -93,25 +93,34 @@ jobs:
           archive_path = output / f'Komari-Ink-v{version}.zip'
           entries = [('komari-theme.json', source / 'komari-theme.json'), ('preview.jpg', source / 'preview.jpg')]
           entries += [('dist/' + name, source / name) for name in runtime]
+          import re
+          payloads = {}
+          for name, path in entries:
+              content = path.read_bytes()
+              if path.suffix == '.mjs':
+                  content = re.sub(r"(['\"])(\.\.?/[^'\"\s]+\.mjs)\1", lambda m: m[1] + m[2] + '?v=' + version + m[1], content.decode()).encode()
+              elif name == 'dist/index.html':
+                  content = content.decode().replace('href="/ink.css"', f'href="/ink.css?v={version}"').replace('src="/app.mjs"', f'src="/app.mjs?v={version}"').encode()
+              payloads[name] = content
           with zipfile.ZipFile(archive_path, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
               for name, path in entries:
                   info = zipfile.ZipInfo(name, date_time=(2000, 1, 1, 0, 0, 0))
                   info.compress_type = zipfile.ZIP_DEFLATED
                   info.external_attr = 0o100644 << 16
-                  archive.writestr(info, path.read_bytes(), compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+                  archive.writestr(info, payloads[name], compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
           with zipfile.ZipFile(archive_path) as archive:
               if archive.testzip() is not None or archive.namelist() != [name for name, _ in entries]:
                   raise ValueError('ZIP integrity or layout check failed')
               for name, path in entries:
-                  if archive.read(name) != path.read_bytes():
+                  if archive.read(name) != payloads[name]:
                       raise ValueError(f'ZIP content mismatch: {name}')
           digest = hashlib.sha256(archive_path.read_bytes()).hexdigest()
           (output / 'SHA256SUMS').write_text(f'{digest}  {archive_path.name}\n')
           report = {
               'theme': manifest['name'], 'version': version, 'archive': archive_path.name,
               'sha256': digest, 'archive_bytes': archive_path.stat().st_size,
-              'runtime_bytes': sum((source / name).stat().st_size for name in runtime),
-              'runtime_gzip_bytes': sum(len(gzip.compress((source / name).read_bytes(), mtime=0)) for name in runtime),
+              'runtime_bytes': sum(len(payloads['dist/' + name]) for name in runtime),
+              'runtime_gzip_bytes': sum(len(gzip.compress(payloads['dist/' + name], mtime=0)) for name in runtime),
               'runtime_dependencies': 0, 'files': [name for name, _ in entries],
               'baseline': 'Komari 1.6.1 official source at 96cf0f79d8cfdf6cc8be54fd1976bbc026d58f7f; live installation unverified',
           }

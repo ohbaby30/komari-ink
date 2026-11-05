@@ -51,7 +51,7 @@ export function normalizeSeries(series,uuid){
  for(const s of series){
   if(!s||typeof s.metric_key!=='string'||s.entity_id&&s.entity_id!==uuid)continue;
   for(const p of s.points||[]){const time=timestamp(p.time);if(time===null)continue;const tags={...s.tags,...p.tags},key=seriesKey({...s,tags});
-   if(!grouped.has(key))grouped.set(key,{metric_key:s.metric_key,entity_id:uuid,unit:s.metric_key==='ping.loss'?'%':s.unit||'',tags,points:[]});
+   if(!grouped.has(key))grouped.set(key,{metric_key:s.metric_key,entity_id:uuid,unit:s.metric_key==='ping.loss'?'%':s.unit||'',interval_seconds:number(s.interval_seconds)??0,tags,points:[]});
    grouped.get(key).points.push({time:new Date(time).toISOString(),value:p.count===0?null:s.metric_key==='ping.latency_ms'?nonnegative(p.value):s.metric_key==='ping.loss'&&number(p.value)!==null?number(p.value)*100:number(p.value),count:p.count});
   }
  }

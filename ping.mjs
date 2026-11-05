@@ -6,9 +6,9 @@ export function correctPingAverages(series){
  return series.map(s=>s.metric_key==='ping.latency_ms'?{...s,points:s.points.map(p=>({...p,value:corrected.get(s.entity_id+'|'+Number(s.tags?.task_id)+'|'+Date.parse(p.time))??p.value}))}:s);
 }
 
-// Compact, real-sample history strips. Loss points are percentages after normalization.
-export function pingStripSVG(points=[],kind='latency'){
- const samples=points.slice(-24),slots=Array(24-samples.length).fill(null).concat(samples),max=Math.max(1,...samples.map(p=>number(p?.value)??0));
- const label=kind==='loss'?'丢包历史':'延迟历史';
- return `<svg class="ping-strip" viewBox="0 0 240 18" preserveAspectRatio="none" role="img" aria-label="${label}">${slots.map((p,i)=>{const value=number(p?.value),valid=value!==null&&value>=0&&(kind!=='loss'||value<=100),height=valid?(kind==='loss'?15:Math.max(4,18*value/max)):4,opacity=kind==='loss'&&valid ? .22+.78*Math.sqrt(value/100):.88,title=(p?.time?new Date(p.time).toLocaleString('zh-CN',{hour12:false})+' · ':'')+(valid?Number(value.toFixed(2))+(kind==='loss'?'%':' ms'):'无样本');return `<rect x="${i*10}" y="${18-height}" width="8" height="${height}" rx="1.5" fill="${valid?'currentColor':'none'}"${valid?` fill-opacity="${opacity}"`:' stroke="currentColor" stroke-opacity=".3" stroke-dasharray="1 1"'}><title>${esc(title)}</title></rect>`;}).join('')}</svg>`;
+// Fixed-size history cells; loss values are percentages after normalization.
+export function pingStripHTML(points=[],kind='latency',{key='',lossPoints=[],intervalSeconds=0,endAt=Infinity}={}){
+ const samples=points.slice(-20),slots=Array(20-samples.length).fill(null).concat(samples),lossByTime=new Map(lossPoints.map(p=>[p.time,number(p.value)]));
+ const maximum=Math.max(1,...samples.map(p=>number(p?.value)??0));
+ return `<div class="ping-strip" data-ping-history data-ping-key="${esc(key)}" data-kind="${kind}" tabindex="0" role="img" aria-label="${kind==='loss'?'丢包':'延迟'}历史">${slots.map(p=>{let value=number(p?.value);const loss=kind==='loss'?value:lossByTime.get(p?.time)??null;if(value!==null&&(value<0||kind==='loss'&&value>100)||kind==='latency'&&loss===100)value=null;const knownLoss=loss!==null&&loss>=0&&loss<=100,state=knownLoss&&loss===100?'down':value===null?'unknown':knownLoss&&loss>0?'partial':'ok',height=state==='unknown'?3:kind==='loss'||state==='down'?7:Math.max(3,Math.min(8,8*value/maximum));const start=p?.time||'',end=start&&intervalSeconds>0&&Math.min(Date.parse(start)+intervalSeconds*1000,endAt)-Date.parse(start)>=1000?new Date(Math.min(Date.parse(start)+intervalSeconds*1000,endAt)).toISOString():'';return `<span class="ping-cell" data-value="${value??''}" data-state="${state}" data-start="${esc(start)}" data-end="${esc(end)}" style="--cell-height:${height}px"></span>`;}).join('')}</div>`;
 }

@@ -12,6 +12,6 @@ Komari 的黑白墨水风格主题。面向普通浏览器，基于官方最新�
 
 1. 从 [Releases](https://github.com/ohbaby30/komari-ink/releases) 下载 `Komari-Ink-v版本号.zip`，不要使用 Source code ZIP。
 2. 在 Komari 后台的主题管理中上传、安装并启用。
-3. 价格、周期、到期等资料在 Komari 后台维护，主题选项在后台主题管理中设置。首页可调整本机布局、刷新和线路；累计流量可打开明细，资产页查看费用与续费，点击节点查看完整信息和图表。
+3. 价格、周期、到期等资料在 Komari 后台维护，主题选项在后台主题管理中设置。首页可调整本机布局、刷新、线路和外观（浅色、深色或跟随系统）；累计流量可打开明细，资产页查看费用与续费，点击节点查看完整信息和图表。
 
 自行构建：进入 Actions → Release theme → Run workflow，选择 main。版本从 `komari-theme.json` 读取，构建成功后安装包发布至 Releases；已有版本不会覆盖。
