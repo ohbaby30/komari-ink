@@ -2,7 +2,7 @@
   "name": "Komari Ink",
   "short": "komari-ink",
   "description": "黑白极简风格的 Komari 监控主题",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "ohbaby30",
   "url": "https://github.com/ohbaby30/komari-ink",
   "preview": "preview.jpg",
@@ -77,6 +77,19 @@
         "name": "首页线路",
         "default": [],
         "help": "最多使用前 6 条；空选自动选择。访客可在当前浏览器调整。"
+      },
+      {
+        "key": "chartDashboardTemplate",
+        "type": "string",
+        "default": "",
+        "name": {
+          "zh-CN": "图表模板",
+          "en": "Chart dashboard template"
+        },
+        "help": {
+          "zh-CN": "JSON 图表模板，可在详情页编辑并保存。",
+          "en": "JSON template; edit and save from node details."
+        }
       }
     ]
   }

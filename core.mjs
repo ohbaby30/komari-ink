@@ -45,7 +45,7 @@ export function duration(value) {
 export function nodesFromPayload(payload) {
   if (!payload || typeof payload !== 'object') throw new Error('节点数据格式错误');
   const items = Array.isArray(payload) ? payload : Object.values(payload);
-  return items.filter(n => n && typeof n.uuid === 'string' && n.uuid && ![true,1,'1','true'].includes(n.hidden)).map(n=>({...n,name:String(n.name || n.uuid),group:String(n.group || '未分组'),region:String(n.region || '—')}));
+  return items.filter(n => n && typeof n.uuid === 'string' && n.uuid).map(n=>({...n,name:String(n.name || n.uuid),group:String(n.group || '未分组'),region:String(n.region || '—')}));
 }
 export function statusMap(payload) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('状态数据格式错误');
@@ -62,7 +62,7 @@ export function normalize(meta, record, now = Date.now()) {
   const upTotal=field('net_total_up','network','totalUp'),downTotal=field('net_total_down','network','totalDown');
   const connections = object(raw.connections), udp=nonnegative(nested?connections.udp:raw.connections_udp);
   const tcp=nested?nonnegative(connections.tcp):nonnegative(raw.connections_tcp) ?? (number(raw.connections)!==null && udp!==null ? Math.max(0,number(raw.connections)-udp):null);
-  return {...meta,online,cpu:field('cpu','cpu','usage'),ramUsed,ramTotal,ram:ratio(ramUsed,ramTotal),swapUsed,swapTotal,swap:ratio(swapUsed,swapTotal),diskUsed,diskTotal,disk:ratio(diskUsed,diskTotal),load:field('load','load','load1'),load5:field('load5','load','load5'),load15:field('load15','load','load15'),up:field('net_out','network','up'),down:field('net_in','network','down'),upTotal,downTotal,tcp,udp,uptime:nonnegative(raw.uptime),updatedAt:timestamp(raw.updated_at ?? raw.time),traffic:quota(meta.traffic_limit_type,upTotal,downTotal,meta.traffic_limit),expiry:expiry(meta.expired_at,now),billing:price(meta)};
+  return {...meta,online,gpu:nonnegative(raw.gpu_usage??raw.gpu_average_usage??(typeof raw.gpu==='object'?raw.gpu?.average_usage??raw.gpu?.usage:raw.gpu)),gpuDetails:object(raw.gpu_detailed??raw.gpu?.devices??Object.fromEntries((raw.gpu_detailed_info??raw.gpu?.detailed_info??[]).map((g,i)=>[i,{usage:g.utilization,device_index:i,device_name:g.name,mem_used:g.memory_used,mem_total:g.memory_total,temperature:g.temperature}]))),temperature:number(raw.temp??raw.temperature),processes:nonnegative(raw.process??raw.processes),cpu:field('cpu','cpu','usage'),ramUsed,ramTotal,ram:ratio(ramUsed,ramTotal),swapUsed,swapTotal,swap:ratio(swapUsed,swapTotal),diskUsed,diskTotal,disk:ratio(diskUsed,diskTotal),load:field('load','load','load1'),load5:field('load5','load','load5'),load15:field('load15','load','load15'),up:field('net_out','network','up'),down:field('net_in','network','down'),upTotal,downTotal,tcp,udp,uptime:nonnegative(raw.uptime),updatedAt:timestamp(raw.updated_at ?? raw.time),traffic:quota(meta.traffic_limit_type,upTotal,downTotal,meta.traffic_limit),expiry:expiry(meta.expired_at,now),billing:price(meta)};
 }
 export function normalizeStats(payload) {
   if (!payload || !Array.isArray(payload.stats)) throw new Error('线路数据格式错误');
@@ -98,15 +98,15 @@ export function publicTasks(payload){
   if(!Array.isArray(payload))throw new Error('线路任务格式错误');
   return payload.filter(t=>t&&/^\d+$/.test(String(t.id))&&Number(t.id)>0).map(t=>({id:String(t.id),name:String(t.name||`任务 ${t.id}`),weight:number(t.weight)??0,clients:Array.isArray(t.clients)?t.clients.filter(x=>typeof x==='string'):[],interval:number(t.interval)})).sort((a,b)=>a.weight-b.weight||Number(a.id)-Number(b.id));
 }
-export function historyPolicy(config={},definitions=null,type='load'){
+export function historyPolicy(config={},definitions=null,type='load',metric=null){
   const keys=type==='ping'?['ping.latency_ms']:['cpu.usage','memory.used','disk.used','net.in.rate','net.out.rate'];
-  const relevant=Array.isArray(definitions)?definitions.filter(d=>keys.includes(d.name)):[];
+  const relevant=Array.isArray(definitions)?definitions.filter(d=>metric?d.name===metric:type==='all'?true:type==='ping'?keys.includes(d.name):d.name!=='ping.latency_ms'):[];
   const positive=relevant.map(d=>number(d.retention_days)).filter(n=>n!==null&&n>0);
   // record_enabled is a compatibility summary (AllPositive), not a global switch.
   const disabled=relevant.length>0&&positive.length===0;
-  let hours=positive.length?Math.min(...positive)*24:nonnegative(config[type==='ping'?'ping_record_preserve_time':'record_preserve_time']);
+  let hours=positive.length?Math.max(...positive)*24:nonnegative(config[type==='ping'?'ping_record_preserve_time':'record_preserve_time']);
   if(disabled||hours===0)return {ranges:[],disabled:true,metrics:relevant};
-  const ranges=[1,6,24,72,168].filter(h=>hours===null||h<=hours);
+  const ranges=[...new Set([1/6,1,6,24,72,168,...(hours>0?[hours]:[])])].filter(h=>hours===null||h<=hours).sort((a,b)=>a-b);
   if(!ranges.length&&hours>0){if(hours<1)return {ranges:[],disabled:true,metrics:relevant};ranges.push(Math.floor(hours));}
   return {ranges,disabled:false,metrics:relevant};
 }
