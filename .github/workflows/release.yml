@@ -117,10 +117,7 @@ jobs:
           }
           (output / 'build-report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
           (output / 'RELEASE_NOTES.md').write_text(
-              f"## {manifest['name']} {version}\n\n"
-              f"下载并在 Komari 主题管理中上传 `{archive_path.name}`。不要使用 GitHub 自动生成的 Source code ZIP。\n\n"
-              "`SHA256SUMS` 用于核对安装包完整性。\n\n"
-              "黑白极简视觉风格；接口基线：Komari 1.6.1。实际服务端兼容性以安装测试为准。\n"
+              f"下载 `{archive_path.name}`，在 Komari 后台主题管理中上传并启用。\n"
           )
           if os.environ.get('GITHUB_OUTPUT'):
               with open(os.environ['GITHUB_OUTPUT'], 'a') as result:
