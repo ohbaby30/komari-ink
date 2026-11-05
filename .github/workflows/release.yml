@@ -119,7 +119,7 @@ jobs:
           (output / 'RELEASE_NOTES.md').write_text(
               f"## {manifest['name']} {version}\n\n"
               f"下载并在 Komari 主题管理中上传 `{archive_path.name}`。不要使用 GitHub 自动生成的 Source code ZIP。\n\n"
-              "`SHA256SUMS` 用于核对安装包完整性；`build-report.json` 记录文件清单与大小。\n\n"
+              "`SHA256SUMS` 用于核对安装包完整性。\n\n"
               "黑白极简视觉风格；接口基线：Komari 1.6.1。实际服务端兼容性以安装测试为准。\n"
           )
           if os.environ.get('GITHUB_OUTPUT'):
@@ -185,7 +185,7 @@ jobs:
               if obj.get('type') != 'commit' or obj.get('sha') != commit:
                   raise RuntimeError('Existing tag points to a different commit; use a new version')
               args += ['--verify-tag']
-          args += [directory + '/' + os.environ['RELEASE_ARCHIVE'], directory + '/SHA256SUMS', directory + '/build-report.json', '--title', 'Komari Ink ' + os.environ['RELEASE_VERSION'], '--notes-file', directory + '/RELEASE_NOTES.md']
+          args += [directory + '/' + os.environ['RELEASE_ARCHIVE'], directory + '/SHA256SUMS', '--title', 'Komari Ink ' + os.environ['RELEASE_VERSION'], '--notes-file', directory + '/RELEASE_NOTES.md']
           if os.environ['RELEASE_PRERELEASE'] == 'true':
               args.append('--prerelease')
           subprocess.run(args, check=True)
