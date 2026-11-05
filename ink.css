@@ -20,3 +20,5 @@ body.has-background .shell{background:transparent}body.has-background header,bod
 .ping-statistics{display:grid;grid-template-columns:auto auto;gap:5px 8px;min-width:150px}.ping-statistics dt,.ping-statistics dd{margin:0;font-size:11px}.ping-statistics dd{text-align:right}.ping-table-wrap{margin-top:8px}.ping-table{min-width:380px}
 
 .stat,.metric-chart,.board,.settings-grid fieldset,.business-table{background:rgb(var(--paper-rgb) / var(--surface-opacity))}
+
+.ping>h3{margin:0;font-size:inherit;font-weight:600;line-height:1.8}
