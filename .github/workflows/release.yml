@@ -50,7 +50,7 @@ jobs:
           from pathlib import Path
           import re
           import zipfile
-          
+
           source = Path(os.environ['THEME_SOURCE']).resolve()
           output = Path(os.environ['THEME_OUTPUT']).resolve()
           manifest = json.loads((source / 'komari-theme.json').read_text())
