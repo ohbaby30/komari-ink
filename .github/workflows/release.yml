@@ -1,0 +1,147 @@
+name: Release theme
+
+'on':
+  push:
+    tags:
+      - 'v[0-9]*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          for module in ./*.mjs; do
+            node --check "$module"
+          done
+
+      - name: Build and verify theme ZIP
+        id: package
+        shell: bash
+        env:
+          THEME_SOURCE: ${{ github.workspace }}
+          THEME_OUTPUT: ${{ runner.temp }}/komari-ink-release
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          # BEGIN KOMARI PACKAGER
+          import gzip
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import zipfile
+          
+          source = Path(os.environ['THEME_SOURCE']).resolve()
+          output = Path(os.environ['THEME_OUTPUT']).resolve()
+          manifest = json.loads((source / 'komari-theme.json').read_text())
+          version = manifest.get('version', '')
+          if not re.fullmatch(r'(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:alpha|beta|rc)\.[1-9]\d*)?', version):
+              raise ValueError('Invalid version; use 1.0.0 or 1.0.0-rc.1')
+          tag = os.environ['RELEASE_TAG']
+          if tag != 'v' + version:
+              raise ValueError(f'Tag {tag!r} does not match manifest version v{version}')
+          if manifest.get('short') != 'komari-ink' or not manifest.get('name') or manifest.get('preview') != 'preview.jpg':
+              raise ValueError('Invalid theme manifest')
+          runtime = ['index.html', 'ink.css', 'app.mjs', 'core.mjs', 'api.mjs', 'poller.mjs']
+          expected = set(runtime + ['komari-theme.json', 'preview.jpg', 'README.md', '.github/workflows/release.yml'])
+          actual = set()
+          for path in source.rglob('*'):
+              relative = path.relative_to(source)
+              if relative.parts[0] == '.git':
+                  continue
+              if path.is_symlink():
+                  raise ValueError(f'Symlink in source: {relative}')
+              if path.is_file():
+                  actual.add(relative.as_posix())
+          if actual != expected:
+              raise ValueError(f'Source inventory mismatch: extra={actual-expected}, missing={expected-actual}')
+          if output == source or source in output.parents:
+              raise ValueError('Build output must stay outside the source tree')
+          html = (source / 'index.html').read_text()
+          if 'href="/ink.css"' not in html or 'src="/app.mjs"' not in html:
+              raise ValueError('Runtime entry references do not match package layout')
+          output.mkdir(parents=True, exist_ok=True)
+          archive_path = output / f'Komari-Ink-v{version}.zip'
+          entries = [('komari-theme.json', source / 'komari-theme.json'), ('preview.jpg', source / 'preview.jpg')]
+          entries += [('dist/' + name, source / name) for name in runtime]
+          with zipfile.ZipFile(archive_path, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+              for name, path in entries:
+                  info = zipfile.ZipInfo(name, date_time=(2000, 1, 1, 0, 0, 0))
+                  info.compress_type = zipfile.ZIP_DEFLATED
+                  info.external_attr = 0o100644 << 16
+                  archive.writestr(info, path.read_bytes(), compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+          with zipfile.ZipFile(archive_path) as archive:
+              if archive.testzip() is not None or archive.namelist() != [name for name, _ in entries]:
+                  raise ValueError('ZIP integrity or layout check failed')
+              for name, path in entries:
+                  if archive.read(name) != path.read_bytes():
+                      raise ValueError(f'ZIP content mismatch: {name}')
+          digest = hashlib.sha256(archive_path.read_bytes()).hexdigest()
+          (output / 'SHA256SUMS').write_text(f'{digest}  {archive_path.name}\n')
+          report = {
+              'theme': manifest['name'], 'version': version, 'archive': archive_path.name,
+              'sha256': digest, 'archive_bytes': archive_path.stat().st_size,
+              'runtime_bytes': sum((source / name).stat().st_size for name in runtime),
+              'runtime_gzip_bytes': sum(len(gzip.compress((source / name).read_bytes(), mtime=0)) for name in runtime),
+              'runtime_dependencies': 0, 'files': [name for name, _ in entries],
+              'baseline': 'Komari 1.6.0 official source at 1b76b7ad5bc3de6529bb7f0577069b4ac241fec3; live installation unverified',
+          }
+          (output / 'build-report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
+          (output / 'RELEASE_NOTES.md').write_text(
+              f"## {manifest['name']} {version}\n\n"
+              f"下载并在 Komari 主题管理中上传 `{archive_path.name}`。不要使用 GitHub 自动生成的 Source code ZIP。\n\n"
+              "`SHA256SUMS` 用于核对安装包完整性；`build-report.json` 记录文件清单与大小。\n\n"
+              "接口基线：Komari 1.6.0；真实环境和墨水屏设备兼容性以安装测试为准。\n"
+          )
+          if os.environ.get('GITHUB_OUTPUT'):
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as result:
+                  result.write(f"version={version}\narchive={archive_path.name}\nprerelease={'true' if '-' in version else 'false'}\n")
+          print(json.dumps(report, ensure_ascii=False, indent=2))
+          # END KOMARI PACKAGER
+          PY
+
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_VERSION: ${{ steps.package.outputs.version }}
+          RELEASE_ARCHIVE: ${{ steps.package.outputs.archive }}
+          RELEASE_PRERELEASE: ${{ steps.package.outputs.prerelease }}
+          RELEASE_DIR: ${{ runner.temp }}/komari-ink-release
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release already exists. Use a new version/tag; existing assets are not overwritten."
+            exit 1
+          fi
+          args=(--verify-tag --title "Komari Ink $RELEASE_VERSION" --notes-file "$RELEASE_DIR/RELEASE_NOTES.md")
+          if [[ "$RELEASE_PRERELEASE" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "$RELEASE_TAG" \
+            "$RELEASE_DIR/$RELEASE_ARCHIVE" \
+            "$RELEASE_DIR/SHA256SUMS" \
+            "$RELEASE_DIR/build-report.json" \
+            "${args[@]}"
