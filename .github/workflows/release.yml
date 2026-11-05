@@ -71,7 +71,7 @@ jobs:
               raise ValueError(f'Tag {tag!r} does not match manifest version v{version}')
           if manifest.get('short') != 'komari-ink' or not manifest.get('name') or manifest.get('preview') != 'preview.jpg':
               raise ValueError('Invalid theme manifest')
-          runtime = ['index.html', 'ink.css', 'app.mjs', 'core.mjs', 'api.mjs', 'poller.mjs', 'metrics.mjs', 'dashboard.mjs']
+          runtime = ['index.html', 'ink.css', 'app.mjs', 'core.mjs', 'api.mjs', 'poller.mjs', 'metrics.mjs', 'dashboard.mjs', 'settings.mjs', 'ping.mjs', 'traffic.mjs', 'pages.mjs', 'lib/cost.mjs', 'lib/billing.mjs', 'lib/format.mjs', 'lib/abort.mjs', 'lib/nodeIdentity.mjs', 'lib/renewalReminder.mjs', 'lib/trafficStats.mjs', 'lib/overviewRating.mjs', 'lib/fakePing.mjs', 'lib/pingMetrics.mjs', 'lib/metricBoundaryRepair.mjs']
           expected = set(runtime + ['komari-theme.json', 'preview.jpg', 'README.md', '.github/workflows/release.yml'])
           actual = set()
           for path in source.rglob('*'):

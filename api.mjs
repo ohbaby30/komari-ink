@@ -1,7 +1,7 @@
 import {nodesFromPayload,statusMap,normalizeStats,legacyStats,publicTasks,themeSettings} from './core.mjs';
 export class ApiError extends Error { constructor(message,code){super(message);this.code=code;} }
 export class Api {
-  constructor({fetcher=(...args)=>globalThis.fetch(...args),timeout=12000,clock=Date.now}={}) {this.fetcher=fetcher;this.timeout=timeout;this.clock=clock;this.id=0;this.metricSupported=true;this.tasksSupported=true;this.metadata=null;this.metadataAt=-Infinity;this.stats=[];this.statsAt=-Infinity;this.pingError=null;this.extrasAt=-Infinity;this.extrasFlight=null;this.onAuxiliary=()=>{};this.definitions=null;this.definitionsAt=-Infinity;}
+  constructor({fetcher=(...args)=>globalThis.fetch(...args),timeout=12000,clock=Date.now}={}) {this.fetcher=fetcher;this.timeout=timeout;this.clock=clock;this.id=0;this.metricSupported=true;this.tasksSupported=true;this.metadata=null;this.metadataAt=-Infinity;this.stats=[];this.statsAt=-Infinity;this.pingError=null;this.configRevision=0;this.configAt=-Infinity;this.extrasAt=-Infinity;this.extrasFlight=null;this.onAuxiliary=()=>{};this.definitions=null;this.definitionsAt=-Infinity;}
   async request(path,options={},signal) {
     const controller=new AbortController();
     const abort=()=>controller.abort();
@@ -43,7 +43,7 @@ export class Api {
     const notify=()=>{if(!signal?.aborted)this.onAuxiliary(this.auxiliary());};
     const jobs=[];let configuration=Promise.resolve();
     if(force||this.clock()-this.extrasAt>=30000){
-      configuration=this.config(signal).then(config=>{if(!signal?.aborted){this.metadata={...this.metadata,config};notify();}});jobs.push(configuration);
+      if(force||this.clock()-this.configAt>=30000){const revision=this.configRevision;configuration=this.config(signal).then(config=>{if(!signal?.aborted&&revision===this.configRevision){this.metadata={...this.metadata,config};this.configAt=this.clock();notify();}});jobs.push(configuration);}
       if(this.tasksSupported)jobs.push(this.rpc('public:getPublicPingTasks',{},signal).then(publicTasks).then(tasks=>{if(!signal?.aborted){this.metadata={...this.metadata,tasks,taskError:null};notify();}}).catch(e=>{if(signal?.aborted)return;if(e.code===-32601)this.tasksSupported=false;else{this.metadata={...this.metadata,taskError:e};notify();}}));
       this.extrasAt=this.clock();
     }
@@ -80,11 +80,14 @@ export class Api {
     return {records:records.filter(r=>r && typeof r==='object' && (!r.client||r.client===uuid)).sort((a,b)=>Date.parse(b.time)-Date.parse(a.time)).slice(0,120),tasks:Array.isArray(result.tasks)?result.tasks:[]};
   }
   async queryMetrics(uuid,keys,range,aggregation='avg',signal){
-    const result=await this.rpc('public:queryMetrics',{metric_keys:[...new Set(keys)],entity_id:uuid,...range,max_points:700,aggregation,fill_empty:true},signal,30000);
+    const result=await this.rpc('public:queryMetrics',{metric_keys:[...new Set(keys.includes('ping.latency_ms')?[...keys,'ping.loss']:keys)],entity_id:uuid,...range,max_points:700,aggregation,fill_empty:true},signal,30000);
     if(!result||!Array.isArray(result.series))throw new ApiError('指标响应格式错误','FORMAT');return result;
   }
-  async saveTemplate(config,charts,signal){
+  async saveTemplate(config,charts,signal){return this.saveSettings(config,{chartDashboardTemplate:JSON.stringify(charts)},signal);}
+  async saveSettings(config,patch,signal){
     if(typeof config.theme!=='string'||!config.theme)throw new Error('未获取当前主题');
-    return this.request('/api/admin/theme/settings?theme='+encodeURIComponent(config.theme),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...config.theme_settings,chartDashboardTemplate:JSON.stringify(charts)})},signal);
+    const themeSettings={...config.theme_settings,...(this.metadata?.config?.theme===config.theme?this.metadata.config.theme_settings:{}),...patch};
+    const result=await this.request('/api/admin/theme/settings?theme='+encodeURIComponent(config.theme),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(themeSettings)},signal);
+    this.configRevision++;this.metadata={nodes:[],...this.metadata,config:{...config,theme_settings:themeSettings}};this.configAt=this.clock();this.onAuxiliary(this.auxiliary());return result;
   }
 }

@@ -2,7 +2,7 @@
   "name": "Komari Ink",
   "short": "komari-ink",
   "description": "黑白极简风格的 Komari 监控主题",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "author": "ohbaby30",
   "url": "https://github.com/ohbaby30/komari-ink",
   "preview": "preview.jpg",
@@ -43,32 +43,32 @@
       },
       {
         "key": "showOverview",
+        "name": "总览",
         "type": "switch",
-        "name": "显示总览",
         "default": true
       },
       {
         "key": "showTraffic",
+        "name": "节点流量",
         "type": "switch",
-        "name": "显示节点流量配额",
         "default": true
       },
       {
         "key": "showBilling",
+        "name": "费用与到期",
         "type": "switch",
-        "name": "显示费用与到期",
         "default": true
       },
       {
         "key": "showPing",
+        "name": "首页线路",
         "type": "switch",
-        "name": "显示线路延迟与丢包",
         "default": true
       },
       {
         "key": "showServerListInDetails",
+        "name": "详情节点切换",
         "type": "switch",
-        "name": "详情中切换节点",
         "default": true
       },
       {
@@ -90,6 +90,268 @@
           "zh-CN": "JSON 图表模板，可在详情页编辑并保存。",
           "en": "JSON template; edit and save from node details."
         }
+      },
+      {
+        "key": "defaultAppearance",
+        "name": "外观",
+        "type": "select",
+        "default": "light",
+        "options": "light,dark,system"
+      },
+      {
+        "key": "desktopNodeViewMode",
+        "name": "桌面布局",
+        "type": "select",
+        "default": "cards",
+        "options": "cards,compact,mini,list,board"
+      },
+      {
+        "key": "mobileNodeViewMode",
+        "name": "手机布局",
+        "type": "select",
+        "default": "cards",
+        "options": "cards,compact,mini,list,board"
+      },
+      {
+        "key": "showGroupTabs",
+        "name": "分组筛选",
+        "type": "switch",
+        "default": true
+      },
+      {
+        "key": "showRegionBar",
+        "name": "地区筛选",
+        "type": "switch",
+        "default": true
+      },
+      {
+        "key": "showCardGroup",
+        "name": "卡片分组",
+        "type": "switch",
+        "default": true
+      },
+      {
+        "key": "enableHomeSort",
+        "name": "排序",
+        "type": "switch",
+        "default": true
+      },
+      {
+        "key": "homeSortField",
+        "name": "默认排序",
+        "type": "select",
+        "default": "default",
+        "options": "default,name,speed,traffic,price,cpu,latency,expiry"
+      },
+      {
+        "key": "homeSortDirection",
+        "name": "排序方向",
+        "type": "select",
+        "default": "asc",
+        "options": "asc,desc"
+      },
+      {
+        "key": "compactShowUptime",
+        "name": "紧凑运行时长",
+        "type": "switch",
+        "default": true
+      },
+      {
+        "key": "showConnections",
+        "name": "连接数",
+        "type": "switch",
+        "default": false
+      },
+      {
+        "key": "showIpTagsInCard",
+        "name": "IP 标签",
+        "type": "switch",
+        "default": true
+      },
+      {
+        "key": "showPingChart",
+        "name": "历史线路",
+        "type": "switch",
+        "default": true
+      },
+      {
+        "key": "enableHomepageMultiPing",
+        "name": "首页多线路",
+        "type": "switch",
+        "default": true
+      },
+      {
+        "key": "fakePingForUnbound",
+        "name": "未分配节点显示模拟延迟",
+        "type": "switch",
+        "default": false
+      },
+      {
+        "key": "showCostSummary",
+        "name": "资产统计",
+        "type": "switch",
+        "default": true
+      },
+      {
+        "key": "showCostSummaryFloatingButton",
+        "name": "资产入口",
+        "type": "switch",
+        "default": true
+      },
+      {
+        "key": "showRenewalReminder",
+        "name": "续费提醒",
+        "type": "switch",
+        "default": true
+      },
+      {
+        "key": "enableAdminButton",
+        "name": "管理入口",
+        "type": "switch",
+        "default": true
+      },
+      {
+        "key": "showOverviewRatings",
+        "name": "概况评级",
+        "type": "switch",
+        "default": false
+      },
+      {
+        "key": "showTrafficRating",
+        "name": "流量评级",
+        "type": "switch",
+        "default": true
+      },
+      {
+        "key": "showBandwidthRating",
+        "name": "带宽评级",
+        "type": "switch",
+        "default": true
+      },
+      {
+        "key": "showAssetRating",
+        "name": "资产评级",
+        "type": "switch",
+        "default": true
+      },
+      {
+        "key": "trafficRatingLabels",
+        "name": "流量评级名称",
+        "type": "string",
+        "default": ""
+      },
+      {
+        "key": "bandwidthRatingLabels",
+        "name": "带宽评级名称",
+        "type": "string",
+        "default": ""
+      },
+      {
+        "key": "assetRatingLabels",
+        "name": "资产评级名称",
+        "type": "string",
+        "default": ""
+      },
+      {
+        "key": "enableBackgroundImage",
+        "name": "背景图片",
+        "type": "switch",
+        "default": false
+      },
+      {
+        "key": "backgroundImage",
+        "name": "桌面背景",
+        "type": "string",
+        "default": ""
+      },
+      {
+        "key": "backgroundImageMobile",
+        "name": "手机背景",
+        "type": "string",
+        "default": ""
+      },
+      {
+        "key": "backgroundAlignment",
+        "name": "背景排布",
+        "type": "select",
+        "default": "cover center",
+        "options": "cover top,cover center,cover bottom,contain top,contain center,contain bottom,auto center"
+      },
+      {
+        "key": "surfaceOpacity",
+        "name": "卡片不透明度（%）",
+        "type": "number",
+        "default": 100
+      },
+      {
+        "key": "costRateApiUrl",
+        "name": "汇率地址",
+        "type": "string",
+        "default": "https://api.frankfurter.dev/v2/rates?base=USD"
+      },
+      {
+        "key": "customFooterHtml",
+        "name": "页脚",
+        "type": "string",
+        "default": ""
+      },
+      {
+        "key": "compactShowTrafficTotal",
+        "name": "紧凑流量",
+        "type": "switch",
+        "default": true
+      },
+      {
+        "key": "compactShowBilling",
+        "name": "紧凑费用",
+        "type": "switch",
+        "default": true
+      },
+      {
+        "key": "darkDepth",
+        "name": "深色浓度",
+        "type": "number",
+        "default": 100
+      },
+      {
+        "key": "hiddenNodes",
+        "name": "隐藏节点",
+        "type": "nodes",
+        "default": []
+      },
+      {
+        "key": "costIgnoredNodes",
+        "name": "费用统计忽略节点",
+        "type": "nodes",
+        "default": []
+      },
+      {
+        "key": "homeGroupOrder",
+        "name": "分组顺序",
+        "type": "textbox",
+        "default": "",
+        "help": "每行一个分组名。"
+      },
+      {
+        "key": "homepagePingBindings",
+        "name": "节点默认线路",
+        "type": "textbox",
+        "default": "{}",
+        "help": "JSON：线路任务 ID 对应节点 UUID 数组，例如 {\"1\":[\"节点UUID\"]}。"
+      },
+      {
+        "key": "costPremiums",
+        "name": "收购溢价扩展",
+        "type": "textbox",
+        "default": "{}",
+        "help": "可选 JSON：节点 UUID 对应 {\"amount\":溢价CNY,\"paidCny\":收购价CNY,\"acquiredAt\":\"YYYY-MM-DD\"}。VPS 原价、币种、周期、到期时间直接使用服务器配置，不在这里重复填写。"
+      },
+      {
+        "key": "metricColors",
+        "name": "指标配色",
+        "type": "textbox",
+        "default": "{}",
+        "help": "可选 JSON：指标键对应 #RRGGBB，空对象使用墨水配色。"
       }
     ]
   }

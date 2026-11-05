@@ -11,7 +11,7 @@ export const METRICS=[
  ['net.total.up','累计上行','bytes',n=>n.upTotal],['net.total.down','累计下行','bytes',n=>n.downTotal],
  ['traffic.up','区间上行','bytes'],['traffic.down','区间下行','bytes'],
  ['process.count','进程数','',n=>n.processes],['connections.tcp','TCP','',n=>n.tcp],['connections.udp','UDP','',n=>n.udp],
- ['ping.latency_ms','延迟','ms'],
+ ['ping.latency_ms','延迟','ms'],['ping.loss','丢包','%'],
 ].map(([key,label,unit,read])=>({key,label,unit,read}));
 export const AGGREGATIONS=['avg','min','max','first','last','stddev','p70','p95','p99'];
 export const DEFAULT_CHARTS=[
@@ -19,7 +19,7 @@ export const DEFAULT_CHARTS=[
  {id:'memory',title:'内存',metrics:['memory.used','swap.used'],size:'small'},
  {id:'disk',title:'磁盘',metrics:['disk.used'],size:'small'},
  {id:'network',title:'网络',metrics:['net.in.rate','net.out.rate','net.total.up','net.total.down'],size:'large'},
- {id:'ping',title:'线路',metrics:['ping.latency_ms'],size:'large'},
+ {id:'ping',title:'线路',metrics:['ping.latency_ms','ping.loss'],size:'large'},
 ];
 export function dashboardTemplate(value){
  try{if(typeof value==='string')value=JSON.parse(value);}catch{value=null;}
@@ -51,8 +51,8 @@ export function normalizeSeries(series,uuid){
  for(const s of series){
   if(!s||typeof s.metric_key!=='string'||s.entity_id&&s.entity_id!==uuid)continue;
   for(const p of s.points||[]){const time=timestamp(p.time);if(time===null)continue;const tags={...s.tags,...p.tags},key=seriesKey({...s,tags});
-   if(!grouped.has(key))grouped.set(key,{metric_key:s.metric_key,entity_id:uuid,unit:s.unit||'',tags,points:[]});
-   grouped.get(key).points.push({time:new Date(time).toISOString(),value:s.metric_key==='ping.latency_ms'?nonnegative(p.value):number(p.value),count:p.count});
+   if(!grouped.has(key))grouped.set(key,{metric_key:s.metric_key,entity_id:uuid,unit:s.metric_key==='ping.loss'?'%':s.unit||'',tags,points:[]});
+   grouped.get(key).points.push({time:new Date(time).toISOString(),value:p.count===0?null:s.metric_key==='ping.latency_ms'?nonnegative(p.value):s.metric_key==='ping.loss'&&number(p.value)!==null?number(p.value)*100:number(p.value),count:p.count});
   }
  }
  return [...grouped.values()].map(s=>({...s,points:s.points.sort((a,b)=>Date.parse(a.time)-Date.parse(b.time))}));
@@ -81,14 +81,14 @@ export function seriesLabel(s,definitions=[],tasks=[]){
  return [m?.label||s.metric_key,task?.name||tags.task_name||tags.device_name||tags.device_index||(tags.task_id?`任务 ${tags.task_id}`:null),...Object.entries(tags).filter(([k])=>!['task_id','task_name','device_name','device_index'].includes(k)).map(([k,v])=>`${k}=${v}`)].filter(Boolean).join(' · ');
 }
 export function metricValue(value,unit){const n=number(value);if(n===null)return '—';if(unit==='bytes')return bytes(n);if(unit==='bytes/s')return rate(n);if(unit==='%')return percent(n);return `${Number(n.toFixed(3))}${unit?' '+(unit==='degC'?'°C':unit):''}`;}
-export function seriesSVG(series,{label='',ewma=false,width=680}={}){
+export function seriesSVG(series,{label='',ewma=false,spanGaps=false,width=680}={}){
  const points=smoothPoints(series.points,ewma),valid=points.filter(p=>p.value!==null);
  if(!valid.length)return '<p>无有效样本</p>';
  const first=timestamp(points[0].time),last=timestamp(points.at(-1).time),low=Math.min(0,...valid.map(p=>p.value)),high=Math.max(1,...valid.map(p=>p.value));
  const w=Math.max(240,number(width)??680),right=w-24;
  const x=t=>48+(timestamp(t)-first)/(last-first||1)*(right-48),y=v=>134-(v-low)/(high-low||1)*110;
  const segments=[];let segment=[];
- for(const p of points){if(p.value===null){if(segment.length)segments.push(segment);segment=[];}else segment.push(p);}if(segment.length)segments.push(segment);
+ for(const p of points){if(p.value===null){if(spanGaps)continue;if(segment.length)segments.push(segment);segment=[];}else segment.push(p);}if(segment.length)segments.push(segment);
  const local=t=>new Date(t).toLocaleString('zh-CN',{hour12:false});
  return `<svg class="trend" viewBox="0 0 ${w} 174" role="img" aria-label="${esc(label)}"><title>${esc(label)}</title><path d="M48 20V134H${right}" fill="none" stroke="currentColor"/>${segments.map(part=>part.length===1?`<circle cx="${x(part[0].time).toFixed(1)}" cy="${y(part[0].value).toFixed(1)}" r="2" fill="currentColor"/>`:`<polyline points="${part.map(p=>`${x(p.time).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ')}" fill="none" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`).join('')}<text x="48" y="157">${esc(local(first))}</text><text x="${right}" y="172" text-anchor="end">${esc(local(last))}</text><text x="48" y="13">${esc(metricValue(high,series.unit))}</text><text x="${right}" y="13" text-anchor="end">${esc(metricValue(valid.at(-1).value,series.unit))}</text></svg>`;
 }
@@ -96,6 +96,6 @@ export function seriesSVG(series,{label='',ewma=false,width=680}={}){
 export function createLineLookup(stats,tasks,selected){
  const samples=new Map();for(const s of stats){const {uuid,...sample}=s;if(!samples.has(uuid))samples.set(uuid,new Map());samples.get(uuid).set(String(s.id),{...sample,uuid});}
  const taskMap=new Map((tasks||[]).map(t=>[String(t.id),{...t,members:new Set(t.clients||[])}])),cache=new Map();
- return uuid=>{if(!cache.has(uuid))cache.set(uuid,selected.map(id=>{const key=String(id),task=taskMap.get(key),sample=samples.get(uuid)?.get(key);return {...(sample||{id:key,name:task?.name||`任务 ${key}`,latency:null,loss:null}),assigned:tasks===null||Boolean(task?.members.has(uuid))};}));return cache.get(uuid);};
+ return uuid=>{if(!cache.has(uuid))cache.set(uuid,(typeof selected==='function'?selected(uuid):selected).map(id=>{const key=String(id),task=taskMap.get(key),sample=samples.get(uuid)?.get(key);return {...(sample||{id:key,name:task?.name||`任务 ${key}`,latency:null,loss:null}),assigned:tasks===null||Boolean(task?.members.has(uuid))};}));return cache.get(uuid);};
 }
 export function instanceRoute(path){const match=/^\/instance\/([^/]+)\/?$/.exec(path);try{return match?decodeURIComponent(match[1]):null;}catch{return null;}}

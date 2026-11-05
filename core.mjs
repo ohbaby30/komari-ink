@@ -11,7 +11,7 @@ export function timestamp(value) {
 export function expiry(value, now = Date.now()) {
   const ms = timestamp(value);
   if (ms === null) return {days:null,label:'—'};
-  const days = Math.ceil((ms - now) / 86400000);
+  const days = Math.floor((ms - now) / 86400000);
   return {days,label:ms <= now ? '已到期' : `${days} 天`};
 }
 export function bytes(value) {
@@ -68,7 +68,7 @@ export function normalizeStats(payload) {
   if (!payload || !Array.isArray(payload.stats)) throw new Error('线路数据格式错误');
   return payload.stats.filter(s=>typeof s.entity_id==='string' && /^\d+$/.test(String(s.task_id))).map(s=>{
     const total=nonnegative(s.total),valid=nonnegative(s.valid);
-    return {uuid:s.entity_id,id:String(s.task_id),name:String(s.name || `任务 ${s.task_id}`),latency:valid > 0 ? nonnegative(s.latest) : null,loss:total > 0 ? nonnegative(s.loss) : null,approximate:s.loss_approximate===true,total};
+    return {uuid:s.entity_id,id:String(s.task_id),name:String(s.name || `任务 ${s.task_id}`),latency:valid > 0 ? nonnegative(s.latest) : null,loss:total > 0 ? nonnegative(s.loss) : null,approximate:s.loss_approximate===true,total,valid,min:valid>0?nonnegative(s.min):null,avg:valid>0?nonnegative(s.avg):null,max:valid>0?nonnegative(s.max):null,p50:valid>0?nonnegative(s.p50):null,p99:valid>0?nonnegative(s.p99):null,stddev:valid>0?nonnegative(s.stddev):null,ratio:valid>0?nonnegative(s.p99_p50_ratio):null};
   });
 }
 export function legacyStats(records) {
@@ -76,10 +76,12 @@ export function legacyStats(records) {
 }
 export function taskOptions(stats,tasks=null) { return tasks??[...new Map(stats.map(s=>[s.id,{id:s.id,name:s.name}])).values()].sort((a,b)=>Number(a.id)-Number(b.id)); }
 export function selectedTasks(value) { return Array.isArray(value) ? [...new Set(value.filter(x=>/^\d+$/.test(String(x)) && Number(x)>0).map(String))].slice(0,6) : null; }
-export function filterNodes(nodes,{query='',group='',region='',status='',sort='default',offlinePosition='Keep'}={}) {
-  const list=nodes.filter(n=>(!query || (`${n.name} ${n.region} ${n.group} ${n.os??''} ${n.arch??''} ${n.public_remark??''}`.toLowerCase().includes(query.toLowerCase())||['online','在线'].includes(query.toLowerCase())&&n.online===true||['offline','离线'].includes(query.toLowerCase())&&n.online===false))&&(!group||n.group===group)&&(!region||n.region===region)&&(!status||status==='online'&&n.online===true||status==='offline'&&n.online===false||status==='attention'&&(n.online===false||n.online===true&&n.cpu>=80||n.expiry.days!==null&&n.expiry.days<=7)));
+export function filterNodes(nodes,{query='',group='',region='',status='',sort='default',direction=null,groupOrder=[],priceByUuid={},offlinePosition='Keep'}={}) {
+  const list=nodes.filter(n=>(!query || (`${n.name} ${n.region} ${n.group} ${n.os??''} ${n.arch??''} ${n.cpu_name??''} ${n.kernel_version??''} ${n.tags??''} ${n.public_remark??''}`.toLowerCase().includes(query.toLowerCase())||['online','在线'].includes(query.toLowerCase())&&n.online===true||['offline','离线'].includes(query.toLowerCase())&&n.online===false))&&(!group||n.group===group)&&(!region||n.region===region)&&(!status||status==='online'&&n.online===true||status==='offline'&&n.online===false||status==='attention'&&(n.online===false||n.online===true&&n.cpu>=80||n.expiry.days!==null&&n.expiry.days<=7)));
   const rank=n=>offlinePosition==='Last'?(n.online===true?0:1):offlinePosition==='First'?(n.online===true?1:0):0;
-  return list.sort((a,b)=>rank(a)-rank(b)||(sort==='cpu'?(b.online===true?b.cpu??-1:-1)-(a.online===true?a.cpu??-1:-1):sort==='latency'?(a.latency??Infinity)-(b.latency??Infinity):sort==='expiry'?(a.expiry.days??Infinity)-(b.expiry.days??Infinity):sort==='name'?a.name.localeCompare(b.name):Number(a.weight||0)-Number(b.weight||0)||a.name.localeCompare(b.name)));
+  const factor=direction==='asc'?1:direction==='desc'?-1:['name','default','expiry','latency'].includes(sort)?1:-1;
+  const value=n=>sort==='name'?n.name:sort==='cpu'?n.online===true?n.cpu:null:sort==='latency'?n.latency:sort==='expiry'?n.expiry.days:sort==='speed'?n.online===true&&n.up!==null&&n.down!==null?(n.sortSpeed!==undefined?n.sortSpeed:n.up+n.down):null:sort==='traffic'?n.upTotal!==null&&n.downTotal!==null?n.upTotal+n.downTotal:null:sort==='price'?priceByUuid[n.uuid]??null:number(n.weight)??0;
+  return list.sort((a,b)=>{const r=rank(a)-rank(b);if(r)return r;if(!group&&groupOrder.length){const index=n=>{const i=groupOrder.indexOf(n.group);return i<0?groupOrder.length:i;};const g=index(a)-index(b);if(g)return g;}const av=value(a),bv=value(b);if(av===null&&bv!==null)return 1;if(bv===null&&av!==null)return -1;const diff=typeof av==='string'?av.localeCompare(String(bv)):av===bv?0:av-bv;return diff*factor||Number(a.weight||0)-Number(b.weight||0)||a.name.localeCompare(b.name);});
 }
 
 export const REFRESH_INTERVALS = [0,2000,5000,10000,30000,60000,300000];
