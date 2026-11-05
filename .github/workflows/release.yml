@@ -104,14 +104,14 @@ jobs:
               'runtime_bytes': sum((source / name).stat().st_size for name in runtime),
               'runtime_gzip_bytes': sum(len(gzip.compress((source / name).read_bytes(), mtime=0)) for name in runtime),
               'runtime_dependencies': 0, 'files': [name for name, _ in entries],
-              'baseline': 'Komari 1.6.0 official source at 1b76b7ad5bc3de6529bb7f0577069b4ac241fec3; live installation unverified',
+              'baseline': 'Komari 1.6.1 official source at 96cf0f79d8cfdf6cc8be54fd1976bbc026d58f7f; live installation unverified',
           }
           (output / 'build-report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
           (output / 'RELEASE_NOTES.md').write_text(
               f"## {manifest['name']} {version}\n\n"
               f"下载并在 Komari 主题管理中上传 `{archive_path.name}`。不要使用 GitHub 自动生成的 Source code ZIP。\n\n"
               "`SHA256SUMS` 用于核对安装包完整性；`build-report.json` 记录文件清单与大小。\n\n"
-              "接口基线：Komari 1.6.0；真实环境和墨水屏设备兼容性以安装测试为准。\n"
+              "黑白极简视觉风格；接口基线：Komari 1.6.1。实际服务端兼容性以安装测试为准。\n"
           )
           if os.environ.get('GITHUB_OUTPUT'):
               with open(os.environ['GITHUB_OUTPUT'], 'a') as result:

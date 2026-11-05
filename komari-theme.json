@@ -1,1 +1,83 @@
-{"name":"Komari Ink","short":"komari-ink","description":"黑白极简墨水屏主题","version":"1.0.0","author":"ohbaby30","url":"https://github.com/ohbaby30/komari-ink","preview":"preview.jpg","configuration":{"type":"managed","data":[]}}
+{
+  "name": "Komari Ink",
+  "short": "komari-ink",
+  "description": "黑白极简风格的 Komari 监控主题",
+  "version": "1.1.0",
+  "author": "ohbaby30",
+  "url": "https://github.com/ohbaby30/komari-ink",
+  "preview": "preview.jpg",
+  "configuration": {
+    "type": "managed",
+    "name": "Komari Ink 设置",
+    "data": [
+      {
+        "key": "refreshIntervalSeconds",
+        "type": "select",
+        "name": "默认刷新间隔（秒）",
+        "options": "2,5,10,30,60,300,0",
+        "default": "2",
+        "help": "0 为手动；节点资料与线路统计每 30 秒更新，切回前台时刷新。"
+      },
+      {
+        "key": "defaultView",
+        "type": "select",
+        "name": "默认布局",
+        "options": "cards,list,board",
+        "default": "cards",
+        "help": "cards 卡片，list 列表，board 看板；访客可在当前浏览器切换。"
+      },
+      {
+        "key": "offlineServerPosition",
+        "type": "select",
+        "name": "离线节点位置",
+        "options": "First,Keep,Last",
+        "default": "Last",
+        "help": "First 置顶，Keep 按权重，Last 置底；未知状态也归在非在线组。"
+      },
+      {
+        "key": "mainContentWidth",
+        "type": "number",
+        "name": "内容宽度（vw）",
+        "default": 100,
+        "help": "可用范围 50–100；100 为全宽。"
+      },
+      {
+        "key": "showOverview",
+        "type": "switch",
+        "name": "显示总览",
+        "default": true
+      },
+      {
+        "key": "showTraffic",
+        "type": "switch",
+        "name": "显示节点流量配额",
+        "default": true
+      },
+      {
+        "key": "showBilling",
+        "type": "switch",
+        "name": "显示费用与到期",
+        "default": true
+      },
+      {
+        "key": "showPing",
+        "type": "switch",
+        "name": "显示线路延迟与丢包",
+        "default": true
+      },
+      {
+        "key": "showServerListInDetails",
+        "type": "switch",
+        "name": "详情中切换节点",
+        "default": true
+      },
+      {
+        "key": "homepagePingTaskIds",
+        "type": "pingtasks",
+        "name": "首页线路",
+        "default": [],
+        "help": "最多使用前 6 条；空选自动选择。访客可在当前浏览器调整。"
+      }
+    ]
+  }
+}

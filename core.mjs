@@ -74,9 +74,49 @@ export function normalizeStats(payload) {
 export function legacyStats(records) {
   return Object.entries(records).flatMap(([uuid,record])=>Object.entries(object(object(record).ping)).filter(([id])=>/^\d+$/.test(id)).map(([id,p])=>({uuid,id,name:String(p.name||`任务 ${id}`),latency:nonnegative(p.latest),loss:nonnegative(p.loss),total:null})));
 }
-export function taskOptions(stats) { return [...new Map(stats.map(s=>[s.id,{id:s.id,name:s.name}])).values()].sort((a,b)=>Number(a.id)-Number(b.id)); }
+export function taskOptions(stats,tasks=null) { return tasks??[...new Map(stats.map(s=>[s.id,{id:s.id,name:s.name}])).values()].sort((a,b)=>Number(a.id)-Number(b.id)); }
 export function selectedTasks(value) { return Array.isArray(value) ? [...new Set(value.filter(x=>/^\d+$/.test(String(x)) && Number(x)>0).map(String))].slice(0,6) : null; }
-export function filterNodes(nodes,{query='',group='',region='',status='',sort='default'}={}) {
-  const list=nodes.filter(n=>(!query || `${n.name} ${n.region} ${n.group}`.toLowerCase().includes(query.toLowerCase()))&&(!group||n.group===group)&&(!region||n.region===region)&&(!status||status==='online'&&n.online===true||status==='offline'&&n.online===false||status==='attention'&&(n.online===false||n.online===true&&n.cpu>=80||n.expiry.days!==null&&n.expiry.days<=7)));
-  return list.sort((a,b)=>sort==='cpu'?(b.online===true?b.cpu??-1:-1)-(a.online===true?a.cpu??-1:-1):sort==='latency'?(a.latency??Infinity)-(b.latency??Infinity):sort==='expiry'?(a.expiry.days??Infinity)-(b.expiry.days??Infinity):sort==='name'?a.name.localeCompare(b.name):Number(b.weight||0)-Number(a.weight||0)||a.name.localeCompare(b.name));
+export function filterNodes(nodes,{query='',group='',region='',status='',sort='default',offlinePosition='Keep'}={}) {
+  const list=nodes.filter(n=>(!query || (`${n.name} ${n.region} ${n.group} ${n.os??''} ${n.arch??''} ${n.public_remark??''}`.toLowerCase().includes(query.toLowerCase())||['online','在线'].includes(query.toLowerCase())&&n.online===true||['offline','离线'].includes(query.toLowerCase())&&n.online===false))&&(!group||n.group===group)&&(!region||n.region===region)&&(!status||status==='online'&&n.online===true||status==='offline'&&n.online===false||status==='attention'&&(n.online===false||n.online===true&&n.cpu>=80||n.expiry.days!==null&&n.expiry.days<=7)));
+  const rank=n=>offlinePosition==='Last'?(n.online===true?0:1):offlinePosition==='First'?(n.online===true?1:0):0;
+  return list.sort((a,b)=>rank(a)-rank(b)||(sort==='cpu'?(b.online===true?b.cpu??-1:-1)-(a.online===true?a.cpu??-1:-1):sort==='latency'?(a.latency??Infinity)-(b.latency??Infinity):sort==='expiry'?(a.expiry.days??Infinity)-(b.expiry.days??Infinity):sort==='name'?a.name.localeCompare(b.name):Number(a.weight||0)-Number(b.weight||0)||a.name.localeCompare(b.name)));
+}
+
+export const REFRESH_INTERVALS = [0,2000,5000,10000,30000,60000,300000];
+export const THEME_DEFAULTS = Object.freeze({refreshInterval:2000,defaultView:'cards',offlineServerPosition:'Last',mainContentWidth:100,showOverview:true,showTraffic:true,showBilling:true,showPing:true,showServerListInDetails:true,homepagePingTaskIds:null});
+export function themeSettings(config={}) {
+  const raw=object(config.theme_settings),settings={...THEME_DEFAULTS};
+  const seconds=number(raw.refreshIntervalSeconds);if(seconds!==null&&REFRESH_INTERVALS.includes(seconds*1000))settings.refreshInterval=seconds*1000;
+  if(['cards','list','board'].includes(raw.defaultView))settings.defaultView=raw.defaultView;
+  if(['First','Keep','Last'].includes(raw.offlineServerPosition))settings.offlineServerPosition=raw.offlineServerPosition;
+  const width=number(raw.mainContentWidth);if(width!==null)settings.mainContentWidth=Math.max(50,Math.min(100,width));
+  for(const key of ['showOverview','showTraffic','showBilling','showPing','showServerListInDetails'])if(typeof raw[key]==='boolean')settings[key]=raw[key];
+  if(Array.isArray(raw.homepagePingTaskIds)&&raw.homepagePingTaskIds.length)settings.homepagePingTaskIds=selectedTasks(raw.homepagePingTaskIds);
+  return settings;
+}
+export function publicTasks(payload){
+  if(!Array.isArray(payload))throw new Error('线路任务格式错误');
+  return payload.filter(t=>t&&/^\d+$/.test(String(t.id))&&Number(t.id)>0).map(t=>({id:String(t.id),name:String(t.name||`任务 ${t.id}`),weight:number(t.weight)??0,clients:Array.isArray(t.clients)?t.clients.filter(x=>typeof x==='string'):[],interval:number(t.interval)})).sort((a,b)=>a.weight-b.weight||Number(a.id)-Number(b.id));
+}
+export function historyPolicy(config={},definitions=null,type='load'){
+  const keys=type==='ping'?['ping.latency_ms']:['cpu.usage','memory.used','disk.used','net.in.rate','net.out.rate'];
+  const relevant=Array.isArray(definitions)?definitions.filter(d=>keys.includes(d.name)):[];
+  const positive=relevant.map(d=>number(d.retention_days)).filter(n=>n!==null&&n>0);
+  // record_enabled is a compatibility summary (AllPositive), not a global switch.
+  const disabled=relevant.length>0&&positive.length===0;
+  let hours=positive.length?Math.min(...positive)*24:nonnegative(config[type==='ping'?'ping_record_preserve_time':'record_preserve_time']);
+  if(disabled||hours===0)return {ranges:[],disabled:true,metrics:relevant};
+  const ranges=[1,6,24,72,168].filter(h=>hours===null||h<=hours);
+  if(!ranges.length&&hours>0){if(hours<1)return {ranges:[],disabled:true,metrics:relevant};ranges.push(Math.floor(hours));}
+  return {ranges,disabled:false,metrics:relevant};
+}
+// Compact, static SVG chart. Null values split segments; failed ping samples leave gaps.
+export function trendSVG(records,{type='load',metric='cpu',taskId=null}={}){
+  const samples=records.filter(r=>type!=='ping'||taskId===null||String(r.task_id)===String(taskId)).map(r=>({time:timestamp(r.time),value:nonnegative(r[type==='ping'?'value':metric])})).filter(p=>p.time!==null).sort((a,b)=>a.time-b.time);
+  const valid=samples.filter(p=>p.value!==null);if(valid.length<2)return '<p>有效样本不足</p>';
+  const start=samples[0].time,end=samples[samples.length-1].time,max=Math.max(1,...valid.map(p=>p.value));
+  const x=t=>32+(t-start)/(end-start||1)*616,y=v=>142-v/max*124;
+  let segments=[],segment=[];for(const p of samples){if(p.value===null){if(segment.length)segments.push(segment);segment=[];}else segment.push(`${x(p.time).toFixed(1)},${y(p.value).toFixed(1)}`);}if(segment.length)segments.push(segment);
+  const label=type==='ping'?'延迟（ms）':{cpu:'CPU（%）',ram:'内存（bytes）',disk:'磁盘（bytes）',net_in:'下行（bytes/s）',net_out:'上行（bytes/s）'}[metric]||metric;
+  return `<svg class="trend" viewBox="0 0 680 170" role="img" aria-label="${escapeHTML(label)}历史趋势"><title>${escapeHTML(label)}</title><path d="M32 16V142H652" fill="none" stroke="currentColor"/>${segments.map(points=>`<polyline points="${points.join(' ')}" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"/>`).join('')}<text x="32" y="163">${escapeHTML(new Date(start).toLocaleTimeString('zh-CN',{hour12:false}))}</text><text x="652" y="163" text-anchor="end">${escapeHTML(new Date(end).toLocaleTimeString('zh-CN',{hour12:false}))}</text><text x="650" y="12" text-anchor="end">${escapeHTML(label)} · ${escapeHTML(Number(max.toFixed(2)))}</text></svg>`;
 }
