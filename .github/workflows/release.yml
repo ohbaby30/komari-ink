@@ -72,6 +72,16 @@ jobs:
           if manifest.get('short') != 'komari-ink' or not manifest.get('name') or manifest.get('preview') != 'preview.jpg':
               raise ValueError('Invalid theme manifest')
           runtime = ['index.html', 'ink.css', 'app.mjs', 'core.mjs', 'api.mjs', 'poller.mjs', 'metrics.mjs', 'dashboard.mjs', 'settings.mjs', 'ping.mjs', 'traffic.mjs', 'pages.mjs', 'lib/cost.mjs', 'lib/billing.mjs', 'lib/format.mjs', 'lib/abort.mjs', 'lib/nodeIdentity.mjs', 'lib/renewalReminder.mjs', 'lib/trafficStats.mjs', 'lib/overviewRating.mjs', 'lib/fakePing.mjs', 'lib/pingMetrics.mjs', 'lib/metricBoundaryRepair.mjs']
+          import re
+          font_names = re.findall(r'url\("(wenkai-[a-z0-9-]+\.woff2)"\)', (source / 'fonts/wenkai.css').read_text())
+          if not font_names or len(font_names) != len(set(font_names)):
+              raise ValueError('Invalid font shard inventory')
+          for name in font_names:
+              data = (source / 'fonts' / name).read_bytes()
+              fingerprint = name.rsplit('-', 1)[1].split('.')[0]
+              if not data.startswith(b'wOF2') or hashlib.sha256(data).hexdigest()[:12] != fingerprint:
+                  raise ValueError(f'Invalid font fingerprint: {name}')
+          runtime += ['fonts/wenkai.css', 'fonts/OFL.txt'] + ['fonts/' + name for name in sorted(font_names)]
           expected = set(runtime + ['komari-theme.json', 'preview.jpg', 'README.md', '.github/workflows/release.yml'])
           actual = set()
           for path in source.rglob('*'):
@@ -99,6 +109,8 @@ jobs:
               content = path.read_bytes()
               if path.suffix == '.mjs':
                   content = re.sub(r"(['\"])(\.\.?/[^'\"\s]+\.mjs)\1", lambda m: m[1] + m[2] + '?v=' + version + m[1], content.decode()).encode()
+              elif path.suffix == '.css':
+                  content = content.decode().replace('/fonts/wenkai.css"', f'/fonts/wenkai.css?v={version}"').encode()
               elif name == 'dist/index.html':
                   content = content.decode().replace('href="/ink.css"', f'href="/ink.css?v={version}"').replace('src="/app.mjs"', f'src="/app.mjs?v={version}"').encode()
               payloads[name] = content

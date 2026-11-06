@@ -2,11 +2,11 @@
 
 ## 项目介绍
 
-Komari 的黑白墨水风格主题。面向普通浏览器，基于官方最新稳定版功能开发，在保留功能的前提下减少资源开销。当前功能基线：Komari 1.6.1。
+Komari 的黑白墨水风格主题，使用霞鹜文楷与清晰的等宽监控数字。面向普通浏览器，基于官方最新稳定版功能开发，在保留功能的前提下减少资源开销。当前功能基线：Komari 1.6.1。
 
 ## 技术栈
 
-原生 JavaScript ES Modules、HTML、CSS、SVG；使用 Komari 同源 HTTP / JSON-RPC 接口，无运行时第三方依赖。GitHub Actions 构建主题 ZIP。
+原生 JavaScript ES Modules、HTML、CSS、SVG；使用 Komari 同源 HTTP / JSON-RPC 接口，无第三方运行时脚本依赖，字库本地按需加载。GitHub Actions 构建主题 ZIP。字体来自 [霞鹜文楷 GB 轻便版](https://github.com/lxgw/LxgwWenkaiGB-Lite)，保留 OFL 授权。
 
 ## 使用方法
 
